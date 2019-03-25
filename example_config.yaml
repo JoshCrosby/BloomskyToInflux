@@ -1,0 +1,18 @@
+bloomsky:
+  apikey: your_api_key
+  celsius: true
+  tag_names:
+    - CityName
+    - DeviceName
+    - LON
+    - LAT
+    - DeviceID
+    - ALT
+    - FullAddress
+    - StreetName
+
+influx:
+  host: 0.0.0.0
+  database: bloomsky
+
+interval: 60
