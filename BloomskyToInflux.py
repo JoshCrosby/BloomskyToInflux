@@ -4,10 +4,13 @@
 #  - The Sky2 generally seems to update data every 5 minutes, per its timestamp
 #  - The Storm updates data far more requently, and doesn't provide a timestamp
 
-import bloomsky_api, json, yaml, datetime, pytz, re
+# This is only tested on my own instance which has a SKY2 & Storm devices
+
+
+import bloomsky_api, json, yaml, datetime, pytz, re, logging, time, sys
 from influxdb import InfluxDBClient
 
-with open("/data/pycharm/projects/BloomskyToInflux/config.yaml", "r") as ymlfile:
+with open("./config.yaml", "r") as ymlfile:
     CONFIG = yaml.load(ymlfile)
 
 
@@ -17,16 +20,23 @@ def main():
 
     # Create DB if not in Influx
     if list(filter(lambda database: database['name'] == CONFIG['influx']['database'], dbs)) == []:
-        print("Creating database: " + CONFIG['influx']['database'])
+        logging.info("Creating database: " + CONFIG['influx']['database'])
         influx_client.create_database(CONFIG['influx']['database'])
 
     influx_client.switch_database(CONFIG['influx']['database'])
 
     data = getBloomskyData()
 
+    if data == '':
+        logging.error("%s API data response empty", datetime.datetime.now())
+        return
+
+    logging.debug(data)
+
     # iterate returned Bloomsky devices
     for device in data:
         influx_client.write_points(jsonTranspose(device))
+        logging.info("Processed for device: %s", device['DeviceName'])
 
 
 def getBloomskyData():
@@ -48,7 +58,7 @@ def convertVideoList(videos, tags):
         # Regex the date
         strDate = re.search("([12]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))",v)
         if strDate == None:
-            print('Could not get video date from URL: ' + v)
+            logging.warning('Could not get video date from URL: ' + v)
             continue
         dateObj = datetime.datetime.strptime(strDate.group(), "%Y-%m-%d")
         metrics += [createInfluxMetric('timelapse', tags, grafanaFriendlyTime(dateObj), {"timelapse_url": v})]
@@ -83,7 +93,7 @@ def jsonTranspose(bloomskyDevice):
         del bloomskyDevice['Data']['ImageTS']
         del bloomskyDevice['Data']['ImageURL']
     else:
-        print('API has no camera data')
+        logging.warning('API has no camera data')
 
     # Timelapse measurement
     if (CONFIG['bloomsky']['celsius'] and 'VideoList_C' in bloomskyDevice):
@@ -91,7 +101,7 @@ def jsonTranspose(bloomskyDevice):
     elif not CONFIG['bloomsky']['celsius'] and 'VideoList' in bloomskyDevice:
         dataPoints += convertVideoList(bloomskyDevice['VideoList'], tags)
     else:
-        print('No timelapse URL data in API object')
+        logging.warning('No timelapse URL data in API object')
 
     # bloomskyDevice measurement
     if 'Data' in bloomskyDevice and 'DeviceType' in bloomskyDevice['Data']:
@@ -101,7 +111,7 @@ def jsonTranspose(bloomskyDevice):
         dataPoints += [createInfluxMetric(bloomskyDevice['Data']['DeviceType'], tags, \
                                           convertTime(bloomskyDeviceTime), bloomskyDevice['Data'])]
     else:
-        print("API didn't return 'Data' or 'DeviceType' objects, no data")
+        logging.error("API didn't return 'Data' or 'DeviceType' objects, no data")
 
     # Storm measurement
     if ('Storm' in bloomskyDevice and bloomskyDevice['Storm'] != {}):
@@ -113,4 +123,11 @@ def jsonTranspose(bloomskyDevice):
 
 # Call main()
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO, \
+                        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(funcName)s - line %(lineno)d")
+    try:
+        while True:
+            main()
+            time.sleep(CONFIG['interval'])
+    except KeyboardInterrupt as ex:
+        logging.info('Exiting!')
