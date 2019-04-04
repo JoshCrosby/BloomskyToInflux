@@ -10,7 +10,7 @@
 import bloomsky_api, json, yaml, datetime, pytz, re, logging, time, sys
 from influxdb import InfluxDBClient
 
-with open("./config.yaml", "r") as ymlfile:
+with open("/config/config.yaml", "r") as ymlfile:
     CONFIG = yaml.load(ymlfile)
 
 
