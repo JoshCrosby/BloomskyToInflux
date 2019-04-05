@@ -10,8 +10,14 @@
 import bloomsky_api, json, yaml, datetime, pytz, re, logging, time, sys
 from influxdb import InfluxDBClient
 
-with open("/config/config.yaml", "r") as ymlfile:
-    CONFIG = yaml.load(ymlfile)
+try:
+    with open("/config/config.yaml", "r") as ymlfile:
+        CONFIG = yaml.load(ymlfile)
+except FileNotFoundError:
+    from shutil import copyfile
+    copyfile("/example_config.yaml","/config/config.yaml")
+    print('Please edit config.yaml and enter your API and InfluxDB settings')
+    exit(1)
 
 
 def main():
