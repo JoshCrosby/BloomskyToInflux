@@ -15,8 +15,13 @@ with open("/config/config.yaml", "r") as ymlfile:
 
 
 def main():
-    influx_client = InfluxDBClient(host=CONFIG['influx']['host'], port=8086)
-    dbs = influx_client.get_list_database()
+    influx_client = InfluxDBClient(host=CONFIG['influx']['host'], port=CONFIG['influx']['port'])
+
+    try:
+        dbs = influx_client.get_list_database()
+    except Exception as e:
+        logging.error('Error connecting to InfluxDB - is influx running?: ', e)
+        return
 
     # Create DB if not in Influx
     if list(filter(lambda database: database['name'] == CONFIG['influx']['database'], dbs)) == []:
@@ -125,9 +130,10 @@ def jsonTranspose(bloomskyDevice):
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO, \
                         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(funcName)s - line %(lineno)d")
-    try:
-        while True:
+    while True:
+        try:
             main()
             time.sleep(CONFIG['interval'])
-    except KeyboardInterrupt as ex:
-        logging.info('Exiting!')
+        except KeyboardInterrupt as ex:
+            logging.info('Exiting!')
+            break
